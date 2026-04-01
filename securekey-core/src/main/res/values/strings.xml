@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="securekey_sdk_name">SecureKey SDK</string>
+    <string name="securekey_done">Done</string>
+    <string name="securekey_shift">Shift</string>
+    <string name="securekey_backspace">Backspace</string>
+    <string name="securekey_space">Space</string>
+    <string name="securekey_symbols">\?123</string>
+    <string name="securekey_letters">ABC</string>
+    <string name="securekey_more_symbols">=\\&lt;</string>
+    <string name="securekey_secured_by">Secured by SecureKey</string>
+    <string name="securekey_threat_detected">Security threat detected</string>
+    <string name="securekey_paste_otp">Paste OTP</string>
+    <string name="securekey_decimal_point">.</string>
+</resources>

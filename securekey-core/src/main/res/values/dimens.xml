@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="securekey_key_height">46dp</dimen>
+    <dimen name="securekey_key_gap">3dp</dimen>
+    <dimen name="securekey_key_corner_radius">8dp</dimen>
+    <dimen name="securekey_key_text_size">18sp</dimen>
+    <dimen name="securekey_popup_offset">12dp</dimen>
+    <dimen name="securekey_popup_corner_radius">10dp</dimen>
+    <dimen name="securekey_popup_text_size">22sp</dimen>
+    <dimen name="securekey_keyboard_height">300dp</dimen>
+    <dimen name="securekey_numeric_keyboard_height">300dp</dimen>
+    <dimen name="securekey_min_touch_target">48dp</dimen>
+</resources>

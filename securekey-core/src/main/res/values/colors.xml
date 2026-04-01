@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light theme (Gboard-style) -->
+    <color name="securekey_keyboard_background">#ECEFF1</color>
+    <color name="securekey_key_background">#FFFFFF</color>
+    <color name="securekey_key_pressed">#D4D6DA</color>
+    <color name="securekey_key_text">#1B1B1F</color>
+    <color name="securekey_action_key">#4285F4</color>
+    <color name="securekey_action_key_text">#FFFFFF</color>
+    <color name="securekey_modifier_key">#B8BCC2</color>
+    <color name="securekey_modifier_key_pressed">#9EA2A8</color>
+    <color name="securekey_space_bar">#FFFFFF</color>
+    <color name="securekey_popup_background">#616161</color>
+    <color name="securekey_popup_text">#FFFFFF</color>
+    <color name="securekey_divider">#DADCE0</color>
+
+    <!-- Dark theme (Gboard-style) -->
+    <color name="securekey_keyboard_background_dark">#2C2C2E</color>
+    <color name="securekey_key_background_dark">#4A4A4E</color>
+    <color name="securekey_key_pressed_dark">#5E5E62</color>
+    <color name="securekey_key_text_dark">#E8EAED</color>
+    <color name="securekey_modifier_key_dark">#3C3C3F</color>
+    <color name="securekey_action_key_dark">#8AB4F8</color>
+    <color name="securekey_action_key_text_dark">#202124</color>
+</resources>

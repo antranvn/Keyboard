@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="SecureKeyTheme" parent="" />
+    <style name="SecureKeyTheme.Light">
+        <item name="securekey_keyBackground">@color/securekey_key_background</item>
+        <item name="securekey_keyTextColor">@color/securekey_key_text</item>
+        <item name="securekey_keyboardBackground">@color/securekey_keyboard_background</item>
+    </style>
+</resources>

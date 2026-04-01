@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="SecureKeyboardView">
+        <attr name="securekey_keyBackground" format="color" />
+        <attr name="securekey_keyTextColor" format="color" />
+        <attr name="securekey_keyboardBackground" format="color" />
+        <attr name="securekey_keyCornerRadius" format="dimension" />
+        <attr name="securekey_keyTextSize" format="dimension" />
+        <attr name="securekey_actionKeyColor" format="color" />
+        <attr name="securekey_actionKeyTextColor" format="color" />
+        <attr name="securekey_hapticEnabled" format="boolean" />
+        <attr name="securekey_keyPreviewEnabled" format="boolean" />
+    </declare-styleable>
+</resources>
