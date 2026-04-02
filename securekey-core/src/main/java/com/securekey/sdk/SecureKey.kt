@@ -29,12 +29,14 @@ import com.securekey.sdk.ui.SystemKeyboardSuppressor
  *
  * Usage:
  * ```kotlin
+ * // In Application.onCreate()
  * val config = SecureKeyConfig.Builder()
  *     .theme(ThemePresets.system(this))
- *     .shuffleNumericKeys(true)
  *     .build()
- *
  * SecureKey.init(this, config)
+ *
+ * // In any Activity.onCreate()
+ * SecureKey.getInstance().bind(this)
  * SecureKey.getInstance().attachTo(editText, KeyboardMode.QWERTY_FULL)
  * ```
  */
@@ -55,7 +57,9 @@ class SecureKey private constructor(
     private var currentMode: KeyboardMode? = null
     private var currentBaseLayout: KeyboardLayout? = null
     private var threatListener: OnSecurityThreatListener? = config.onSecurityThreat
+    private var keyboardStateListener: OnKeyboardStateListener? = null
     private var activityRef: java.lang.ref.WeakReference<Activity>? = null
+    private var isKeyboardVisible = false
 
     init {
         dispatcher.initSession()
@@ -64,6 +68,11 @@ class SecureKey private constructor(
 
     /** Bind to an Activity for keyboard view attachment and FLAG_SECURE. Call from onCreate. */
     fun bind(activity: Activity) {
+        // If switching activities, clean up old keyboard view
+        val oldActivity = activityRef?.get()
+        if (oldActivity != null && oldActivity !== activity) {
+            cleanupKeyboardView()
+        }
         activityRef = java.lang.ref.WeakReference(activity)
         if (!config.allowScreenshot) {
             activity.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -111,7 +120,23 @@ class SecureKey private constructor(
     fun dismiss() {
         keyboardView?.dismiss {
             memoryManager.onKeyboardDismiss()
+            isKeyboardVisible = false
+            keyboardStateListener?.onKeyboardHidden()
         }
+    }
+
+    /** Get the current keyboard height in pixels (0 if hidden) */
+    fun getKeyboardHeight(): Int {
+        if (!isKeyboardVisible) return 0
+        return keyboardView?.height ?: 0
+    }
+
+    /** Whether the keyboard is currently visible */
+    fun isKeyboardVisible(): Boolean = isKeyboardVisible
+
+    /** Set keyboard visibility state listener */
+    fun setKeyboardStateListener(listener: OnKeyboardStateListener) {
+        keyboardStateListener = listener
     }
 
     /** Get the current security report */
@@ -134,19 +159,39 @@ class SecureKey private constructor(
         memoryManager.onStop()
     }
 
-    /** Call from Activity.onDestroy() */
+    /**
+     * Clean up activity-specific resources. Call from Activity.onDestroy().
+     * The SDK singleton remains alive for reuse in other activities.
+     * Call [destroy] only if you want to fully tear down the SDK.
+     */
     fun onDestroy() {
-        keyboardView?.let { view ->
-            (view.parent as? ViewGroup)?.removeView(view)
-        }
+        cleanupKeyboardView()
+        focusManager.destroy()
+        suppressor.destroy()
+        // Re-setup focus manager for the next activity
+        setupFocusManager()
+    }
+
+    /** Fully destroy the SDK instance and release all resources. */
+    fun destroy() {
+        cleanupKeyboardView()
         dispatcher.destroySession()
         memoryManager.wipeAll()
         clipboardGuard.stopMonitoring()
         focusManager.destroy()
         suppressor.destroy()
         inputProcessor.destroy()
-        keyboardView = null
         instance = null
+    }
+
+    private fun cleanupKeyboardView() {
+        keyboardView?.let { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
+        keyboardView = null
+        currentMode = null
+        currentBaseLayout = null
+        isKeyboardVisible = false
     }
 
     private fun showForMode(mode: KeyboardMode, targetView: EditText) {
@@ -161,7 +206,7 @@ class SecureKey private constructor(
         )
         currentBaseLayout = layout
 
-        ensureKeyboardView()
+        ensureKeyboardView(targetView)
         val view = keyboardView ?: return
 
         if (!alreadyVisible) {
@@ -195,12 +240,13 @@ class SecureKey private constructor(
         }
         view.onKeyPressed = { key ->
             inputProcessor.processKey(key)
-            // Shift key is handled via onActionKey callback above
         }
 
         // Only animate show if not already visible
         if (!alreadyVisible) {
             view.show()
+            isKeyboardVisible = true
+            keyboardStateListener?.onKeyboardShown(view.height)
             checkThreats()
         }
     }
@@ -211,7 +257,6 @@ class SecureKey private constructor(
         val baseLayout = currentBaseLayout ?: return
         val shiftActive = inputProcessor.getShiftState().isActive
         val shifted = baseLayout.withShiftApplied(shiftActive)
-        // Re-calculate bounds with the shifted labels
         view.setLayout(shifted)
     }
 
@@ -232,19 +277,48 @@ class SecureKey private constructor(
         keyboardView?.setLayout(layout)
     }
 
-    private fun ensureKeyboardView() {
+    /**
+     * Find the best root ViewGroup for attaching the keyboard.
+     * Supports dialogs, bottom sheets, and popups by walking up the view hierarchy.
+     */
+    private fun findRootViewFor(targetView: View): ViewGroup? {
+        // Walk up to find the top-most FrameLayout (dialog or activity root)
+        var current: View? = targetView
+        var lastFrameLayout: ViewGroup? = null
+        while (current != null) {
+            if (current is FrameLayout && current.id == android.R.id.content) {
+                return current
+            }
+            if (current is FrameLayout) {
+                lastFrameLayout = current
+            }
+            current = current.parent as? View
+        }
+        // If in a dialog/popup, use the topmost FrameLayout we found
+        if (lastFrameLayout != null) return lastFrameLayout
+        // Fallback to activity root
+        val activity = activityRef?.get() ?: return null
+        return activity.findViewById(android.R.id.content)
+    }
+
+    private fun ensureKeyboardView(targetView: View? = null) {
         if (keyboardView != null) return
 
-        val activity = activityRef?.get() ?: (context as? Activity) ?: return
-        val rootView = activity.findViewById<ViewGroup>(android.R.id.content)
+        val rootView = if (targetView != null) {
+            findRootViewFor(targetView)
+        } else {
+            val activity = activityRef?.get() ?: (context as? Activity) ?: return
+            activity.findViewById<ViewGroup>(android.R.id.content)
+        } ?: return
 
-        val view = SecureKeyboardView(activity)
-        val density = activity.resources.displayMetrics.density
+        val viewContext = rootView.context
+        val view = SecureKeyboardView(viewContext)
+        val density = viewContext.resources.displayMetrics.density
         view.renderer.setDensity(density)
 
         // Get navigation bar height for bottom inset
-        val navBarHeight = getNavigationBarHeight(activity)
-        val totalHeight = (300 * density).toInt() + navBarHeight
+        val navBarHeight = getNavigationBarHeight(rootView)
+        val totalHeight = (KEYBOARD_HEIGHT_DP * density).toInt() + navBarHeight
         view.bottomInsetPx = navBarHeight.toFloat()
 
         val params = FrameLayout.LayoutParams(
@@ -262,16 +336,17 @@ class SecureKey private constructor(
             val navInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             view.bottomInsetPx = navInset.bottom.toFloat()
             val lp = v.layoutParams as FrameLayout.LayoutParams
-            lp.height = (300 * density).toInt() + navInset.bottom
+            lp.height = (KEYBOARD_HEIGHT_DP * density).toInt() + navInset.bottom
             v.layoutParams = lp
+            if (isKeyboardVisible) {
+                keyboardStateListener?.onKeyboardShown(lp.height)
+            }
             insets
         }
     }
 
-    private fun getNavigationBarHeight(activity: Activity): Int {
-        val windowInsets = ViewCompat.getRootWindowInsets(
-            activity.window.decorView
-        )
+    private fun getNavigationBarHeight(rootView: View): Int {
+        val windowInsets = ViewCompat.getRootWindowInsets(rootView)
         return windowInsets?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
     }
 
@@ -301,10 +376,13 @@ class SecureKey private constructor(
     }
 
     companion object {
+        /** Keyboard height in dp — matches Gboard compact layout */
+        internal const val KEYBOARD_HEIGHT_DP = 230
+
         @Volatile
         private var instance: SecureKey? = null
 
-        /** Initialize the SDK. Call once from Application or Activity. */
+        /** Initialize the SDK. Call once from Application.onCreate(). */
         fun init(context: Context, config: SecureKeyConfig = SecureKeyConfig.Builder().build()) {
             instance = SecureKey(context.applicationContext, config)
         }

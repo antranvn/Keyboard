@@ -70,4 +70,19 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        SecureKey.getInstance().onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        SecureKey.getInstance().onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        SecureKey.getInstance().onDestroy()
+    }
 }

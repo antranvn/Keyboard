@@ -70,7 +70,7 @@ class SecureKeyboardView @JvmOverloads constructor(
         currentLayout = layout.calculateBounds(
             width.toFloat(),
             height.toFloat(),
-            resources.displayMetrics.density * 3,
+            resources.displayMetrics.density * 2.5f,
             bottomInsetPx
         )
         touchHandler.setLayout(currentLayout!!)
@@ -89,7 +89,7 @@ class SecureKeyboardView @JvmOverloads constructor(
             currentLayout = layout.calculateBounds(
                 width.toFloat(),
                 height.toFloat(),
-                resources.displayMetrics.density * 3,
+                resources.displayMetrics.density * 2.5f,
                 bottomInsetPx
             )
             touchHandler.setLayout(currentLayout!!)
@@ -103,7 +103,7 @@ class SecureKeyboardView @JvmOverloads constructor(
             currentLayout = layout.calculateBounds(
                 w.toFloat(),
                 h.toFloat(),
-                resources.displayMetrics.density * 3,
+                resources.displayMetrics.density * 2.5f,
                 bottomInsetPx
             )
             touchHandler.setLayout(currentLayout!!)
