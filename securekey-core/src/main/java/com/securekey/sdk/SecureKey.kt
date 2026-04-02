@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ScrollView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.securekey.sdk.core.InputProcessor
@@ -27,12 +28,13 @@ import com.securekey.sdk.ui.SystemKeyboardSuppressor
 /**
  * Main entry point for the SecureKey SDK.
  *
+ * The keyboard behaves like the native system keyboard: it pushes content up
+ * by applying bottom padding to the content root when it shows, and removes
+ * it when it hides. Integrating apps do not need to handle layout adjustments.
+ *
  * Usage:
  * ```kotlin
  * // In Application.onCreate()
- * val config = SecureKeyConfig.Builder()
- *     .theme(ThemePresets.system(this))
- *     .build()
  * SecureKey.init(this, config)
  *
  * // In any Activity.onCreate()
@@ -61,6 +63,12 @@ class SecureKey private constructor(
     private var activityRef: java.lang.ref.WeakReference<Activity>? = null
     private var isKeyboardVisible = false
 
+    // Track the content root and its original padding so we can push content up
+    private var contentRoot: ViewGroup? = null
+    private var originalContentBottomPadding: Int = 0
+    /** Pre-calculated keyboard height in px (available immediately, no layout pass needed) */
+    private var keyboardHeightPx: Int = 0
+
     init {
         dispatcher.initSession()
         setupFocusManager()
@@ -68,7 +76,6 @@ class SecureKey private constructor(
 
     /** Bind to an Activity for keyboard view attachment and FLAG_SECURE. Call from onCreate. */
     fun bind(activity: Activity) {
-        // If switching activities, clean up old keyboard view
         val oldActivity = activityRef?.get()
         if (oldActivity != null && oldActivity !== activity) {
             cleanupKeyboardView()
@@ -94,7 +101,7 @@ class SecureKey private constructor(
 
     /** Attach multiple EditTexts for OTP entry */
     fun attachOtpFields(vararg editTexts: EditText, otpLength: Int = 6) {
-        editTexts.take(otpLength).forEachIndexed { index, editText ->
+        editTexts.take(otpLength).forEachIndexed { _, editText ->
             attachTo(editText, KeyboardMode.NUMERIC_OTP)
         }
     }
@@ -112,23 +119,29 @@ class SecureKey private constructor(
 
     /** Show the keyboard */
     fun show() {
-        val mode = currentMode ?: return
+        currentMode ?: return
         keyboardView?.show()
     }
 
     /** Dismiss the keyboard */
     fun dismiss() {
+        if (!isKeyboardVisible) return
         keyboardView?.dismiss {
             memoryManager.onKeyboardDismiss()
+            restoreContentPadding()
             isKeyboardVisible = false
             keyboardStateListener?.onKeyboardHidden()
         }
     }
 
-    /** Get the current keyboard height in pixels (0 if hidden) */
+    /**
+     * Get the current keyboard height in pixels.
+     * Returns the pre-calculated height immediately — no layout pass needed.
+     * Returns 0 if the keyboard is hidden.
+     */
     fun getKeyboardHeight(): Int {
         if (!isKeyboardVisible) return 0
-        return keyboardView?.height ?: 0
+        return keyboardHeightPx
     }
 
     /** Whether the keyboard is currently visible */
@@ -162,18 +175,18 @@ class SecureKey private constructor(
     /**
      * Clean up activity-specific resources. Call from Activity.onDestroy().
      * The SDK singleton remains alive for reuse in other activities.
-     * Call [destroy] only if you want to fully tear down the SDK.
      */
     fun onDestroy() {
+        restoreContentPadding()
         cleanupKeyboardView()
         focusManager.destroy()
         suppressor.destroy()
-        // Re-setup focus manager for the next activity
         setupFocusManager()
     }
 
     /** Fully destroy the SDK instance and release all resources. */
     fun destroy() {
+        restoreContentPadding()
         cleanupKeyboardView()
         dispatcher.destroySession()
         memoryManager.wipeAll()
@@ -192,6 +205,7 @@ class SecureKey private constructor(
         currentMode = null
         currentBaseLayout = null
         isKeyboardVisible = false
+        contentRoot = null
     }
 
     private fun showForMode(mode: KeyboardMode, targetView: EditText) {
@@ -212,7 +226,6 @@ class SecureKey private constructor(
         if (!alreadyVisible) {
             config.theme.applyTo(view.renderer)
             view.touchHandler.hapticEnabled = config.hapticFeedbackEnabled
-            // Reset shift state when switching to a new mode
             inputProcessor.getShiftState().reset()
             view.setLayout(layout)
         }
@@ -220,7 +233,6 @@ class SecureKey private constructor(
         // Always rebind input to the current target field
         inputProcessor.setOnCharacterInput { char ->
             targetView.append(char.toString())
-            // After typing a character, update labels if shift was auto-reset
             refreshShiftLabels()
         }
         inputProcessor.setOnActionKey { action ->
@@ -242,16 +254,78 @@ class SecureKey private constructor(
             inputProcessor.processKey(key)
         }
 
-        // Only animate show if not already visible
         if (!alreadyVisible) {
             view.show()
             isKeyboardVisible = true
-            keyboardStateListener?.onKeyboardShown(view.height)
+            applyContentPadding()
+            keyboardStateListener?.onKeyboardShown(keyboardHeightPx)
+            // Scroll the focused field into view
+            scrollFieldIntoView(targetView)
             checkThreats()
         }
     }
 
-    /** Update keyboard labels to reflect current shift state */
+    /**
+     * Push content up by adding bottom padding to the content root.
+     * This mimics the native keyboard adjustResize behavior.
+     */
+    private fun applyContentPadding() {
+        val root = contentRoot ?: return
+        originalContentBottomPadding = root.paddingBottom
+        root.setPadding(
+            root.paddingLeft,
+            root.paddingTop,
+            root.paddingRight,
+            originalContentBottomPadding + keyboardHeightPx
+        )
+    }
+
+    /** Restore original content padding when keyboard hides */
+    private fun restoreContentPadding() {
+        val root = contentRoot ?: return
+        root.setPadding(
+            root.paddingLeft,
+            root.paddingTop,
+            root.paddingRight,
+            originalContentBottomPadding
+        )
+    }
+
+    /**
+     * Scroll the focused EditText into visible area above the keyboard,
+     * similar to how the system keyboard scrolls focused views.
+     */
+    private fun scrollFieldIntoView(targetView: EditText) {
+        targetView.post {
+            // Find a scrollable parent and request scroll
+            var parent = targetView.parent
+            while (parent != null) {
+                if (parent is ScrollView || parent is androidx.core.widget.NestedScrollView) {
+                    val scrollView = parent as ViewGroup
+                    val location = IntArray(2)
+                    targetView.getLocationInWindow(location)
+                    val scrollViewLocation = IntArray(2)
+                    scrollView.getLocationInWindow(scrollViewLocation)
+
+                    val fieldBottom = location[1] + targetView.height
+                    val visibleBottom = scrollViewLocation[1] + scrollView.height - keyboardHeightPx
+
+                    if (fieldBottom > visibleBottom) {
+                        val scrollAmount = fieldBottom - visibleBottom + (16 * context.resources.displayMetrics.density).toInt()
+                        (parent as? ScrollView)?.smoothScrollBy(0, scrollAmount)
+                        (parent as? androidx.core.widget.NestedScrollView)?.smoothScrollBy(0, scrollAmount)
+                    }
+                    return@post
+                }
+                parent = parent.parent
+            }
+            // No ScrollView parent — use requestRectangleOnScreen as fallback
+            val rect = android.graphics.Rect()
+            targetView.getGlobalVisibleRect(rect)
+            targetView.requestRectangleOnScreen(rect, false)
+        }
+    }
+
     private fun refreshShiftLabels() {
         val view = keyboardView ?: return
         val baseLayout = currentBaseLayout ?: return
@@ -279,10 +353,9 @@ class SecureKey private constructor(
 
     /**
      * Find the best root ViewGroup for attaching the keyboard.
-     * Supports dialogs, bottom sheets, and popups by walking up the view hierarchy.
+     * Supports activities, dialogs, bottom sheets, and popups.
      */
     private fun findRootViewFor(targetView: View): ViewGroup? {
-        // Walk up to find the top-most FrameLayout (dialog or activity root)
         var current: View? = targetView
         var lastFrameLayout: ViewGroup? = null
         while (current != null) {
@@ -294,9 +367,7 @@ class SecureKey private constructor(
             }
             current = current.parent as? View
         }
-        // If in a dialog/popup, use the topmost FrameLayout we found
         if (lastFrameLayout != null) return lastFrameLayout
-        // Fallback to activity root
         val activity = activityRef?.get() ?: return null
         return activity.findViewById(android.R.id.content)
     }
@@ -311,19 +382,22 @@ class SecureKey private constructor(
             activity.findViewById<ViewGroup>(android.R.id.content)
         } ?: return
 
-        val viewContext = rootView.context
-        val view = SecureKeyboardView(viewContext)
-        val density = viewContext.resources.displayMetrics.density
-        view.renderer.setDensity(density)
+        contentRoot = rootView
 
-        // Get navigation bar height for bottom inset
+        val viewContext = rootView.context
+        val density = viewContext.resources.displayMetrics.density
+
+        // Calculate keyboard height up-front (available immediately)
         val navBarHeight = getNavigationBarHeight(rootView)
-        val totalHeight = (KEYBOARD_HEIGHT_DP * density).toInt() + navBarHeight
+        keyboardHeightPx = (KEYBOARD_HEIGHT_DP * density).toInt() + navBarHeight
+
+        val view = SecureKeyboardView(viewContext)
+        view.renderer.setDensity(density)
         view.bottomInsetPx = navBarHeight.toFloat()
 
         val params = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            totalHeight
+            keyboardHeightPx
         ).apply {
             gravity = android.view.Gravity.BOTTOM
         }
@@ -331,15 +405,27 @@ class SecureKey private constructor(
         rootView.addView(view, params)
         keyboardView = view
 
-        // Also listen for inset changes (e.g. rotation)
+        // Listen for inset changes (rotation, nav bar changes)
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val navInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             view.bottomInsetPx = navInset.bottom.toFloat()
+            val newHeight = (KEYBOARD_HEIGHT_DP * density).toInt() + navInset.bottom
+            keyboardHeightPx = newHeight
             val lp = v.layoutParams as FrameLayout.LayoutParams
-            lp.height = (KEYBOARD_HEIGHT_DP * density).toInt() + navInset.bottom
+            lp.height = newHeight
             v.layoutParams = lp
             if (isKeyboardVisible) {
-                keyboardStateListener?.onKeyboardShown(lp.height)
+                // Re-apply content padding with new height
+                val root = contentRoot
+                if (root != null) {
+                    root.setPadding(
+                        root.paddingLeft,
+                        root.paddingTop,
+                        root.paddingRight,
+                        originalContentBottomPadding + newHeight
+                    )
+                }
+                keyboardStateListener?.onKeyboardShown(newHeight)
             }
             insets
         }

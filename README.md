@@ -13,7 +13,10 @@ Built for banking, fintech, and any application handling sensitive user input li
 - **Clipboard Protection** -- Disables copy/paste/cut/share/autofill on secure fields. Clears clipboard on activation.
 - **Screenshot Protection** -- Applies `FLAG_SECURE` to prevent screen capture and recording.
 - **4 Keyboard Modes** -- QWERTY (full), Numeric PIN, Numeric OTP (auto-advance), Amount Pad (currency + decimal).
-- **Gboard-Style UI** -- Material Design rendering with light/dark/custom themes.
+- **Gboard-Style UI** -- Material Design rendering with light/dark/custom themes, Path-based shift/backspace icons.
+- **Native Keyboard Behavior** -- Pushes content up automatically when shown, scrolls focused field into view, works with ScrollView/NestedScrollView. No layout adjustment needed by the integrating app.
+- **Popup & Dialog Support** -- Works inside dialogs, bottom sheets, and popups by auto-detecting the correct window root.
+- **Keyboard State Callbacks** -- `OnKeyboardStateListener` provides keyboard height and visibility changes.
 - **Bank Branding** -- Logo bar or watermark overlay, configurable position, "Secured by SecureKey" badge.
 - **Cross-Platform Bridges** -- Interface contracts for React Native, Flutter, and WebView.
 - **Zero Third-Party Dependencies** -- Only AndroidX Core and AppCompat.
@@ -124,7 +127,7 @@ class BankingApp : Application() {
 
 ### Activity Lifecycle
 
-Bind to the Activity and forward lifecycle events:
+Bind to the Activity and forward lifecycle events. The SDK singleton persists across activities -- `onDestroy()` only cleans up the keyboard view, not the SDK itself:
 
 ```kotlin
 class LoginActivity : AppCompatActivity() {
@@ -133,6 +136,7 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
+        // Bind to this activity (safe to call in every activity)
         SecureKey.getInstance().bind(this)
 
         val passwordField = findViewById<SecureEditText>(R.id.password_field)
@@ -151,9 +155,51 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Cleans up keyboard view only; SDK stays alive for other activities
         SecureKey.getInstance().onDestroy()
     }
 }
+```
+
+The keyboard automatically pushes content up when it appears (like the native keyboard). No `adjustResize` or manual padding needed. If the focused field is inside a `ScrollView` or `NestedScrollView`, it will be scrolled into view above the keyboard.
+
+### Keyboard State Listener
+
+Get notified when the keyboard shows or hides, with the exact height in pixels:
+
+```kotlin
+SecureKey.getInstance().setKeyboardStateListener(object : OnKeyboardStateListener {
+    override fun onKeyboardShown(heightPx: Int) {
+        // heightPx = keyboard height in pixels (available immediately, no layout pass)
+        Log.d("Keyboard", "Shown with height: $heightPx")
+    }
+
+    override fun onKeyboardHidden() {
+        Log.d("Keyboard", "Hidden")
+    }
+})
+
+// You can also query at any time:
+val height = SecureKey.getInstance().getKeyboardHeight() // 0 if hidden
+val visible = SecureKey.getInstance().isKeyboardVisible()
+```
+
+### Dialog & Popup Support
+
+The keyboard works inside dialogs and bottom sheets automatically. Just call `attachTo()` on any `EditText`, regardless of where it lives in the view hierarchy:
+
+```kotlin
+val dialog = AlertDialog.Builder(this)
+    .setTitle("Enter PIN")
+    .setView(R.layout.dialog_pin)
+    .create()
+
+dialog.setOnShowListener {
+    val pinField = dialog.findViewById<SecureEditText>(R.id.pin_field)!!
+    SecureKey.getInstance().attachTo(pinField, KeyboardMode.NUMERIC_PIN)
+}
+dialog.show()
+```
 ```
 
 ### SecureEditText
@@ -652,17 +698,21 @@ if (!report.isSecure) {
 |--------|-------------|
 | `SecureKey.init(context, config)` | Initialize the SDK singleton. Call once from `Application` or `Activity`. |
 | `SecureKey.getInstance()` | Get the singleton instance. Throws if `init()` hasn't been called. |
-| `bind(activity)` | Bind to an Activity for keyboard view attachment and `FLAG_SECURE`. Call from `onCreate()`. |
-| `attachTo(editText, mode)` | Attach the secure keyboard to an `EditText` with the specified mode. |
+| `bind(activity)` | Bind to an Activity for keyboard view attachment and `FLAG_SECURE`. Call from `onCreate()`. Safe to call in every activity. |
+| `attachTo(editText, mode)` | Attach the secure keyboard to an `EditText` with the specified mode. Works in activities, dialogs, and popups. |
 | `attachOtpFields(vararg editTexts, otpLength)` | Attach multiple `EditText` fields for OTP entry. |
 | `attachAmountField(editText, currency, suggestions, maxAmount, decimalPlaces)` | Attach an `EditText` for amount entry with currency and formatting options. |
 | `show()` | Programmatically show the keyboard. |
-| `dismiss()` | Dismiss the keyboard with animation. |
+| `dismiss()` | Dismiss the keyboard with animation. Restores content padding. |
+| `getKeyboardHeight()` | Returns keyboard height in pixels (0 if hidden). Pre-calculated, no layout pass needed. |
+| `isKeyboardVisible()` | Returns `true` if the keyboard is currently visible. |
+| `setKeyboardStateListener(listener)` | Set a callback for keyboard show/hide with height. |
 | `getSecurityReport()` | Get the current `IntegrityReport` with threat detection results. |
 | `setThreatListener(listener)` | Set a callback for real-time threat notifications. |
 | `onResume()` | Forward from `Activity.onResume()`. Re-checks threats. |
 | `onPause()` | Forward from `Activity.onPause()`. Wipes secure memory. |
-| `onDestroy()` | Forward from `Activity.onDestroy()`. Destroys the SDK instance and all resources. |
+| `onDestroy()` | Forward from `Activity.onDestroy()`. Cleans up keyboard view, SDK singleton stays alive. |
+| `destroy()` | Fully destroy the SDK instance and release all resources. |
 
 ### IntegrityReport
 
