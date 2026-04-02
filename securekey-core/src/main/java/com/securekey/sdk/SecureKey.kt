@@ -375,20 +375,26 @@ class SecureKey private constructor(
     private fun ensureKeyboardView(targetView: View? = null) {
         if (keyboardView != null) return
 
-        val rootView = if (targetView != null) {
+        // Find the content area (android.R.id.content) — this is where we apply padding
+        val contentView = if (targetView != null) {
             findRootViewFor(targetView)
         } else {
             val activity = activityRef?.get() ?: (context as? Activity) ?: return
             activity.findViewById<ViewGroup>(android.R.id.content)
         } ?: return
 
-        contentRoot = rootView
+        // contentRoot is the content area — padding goes here to push app content up
+        contentRoot = contentView
 
-        val viewContext = rootView.context
+        // The keyboard goes into the DecorView (parent of content) so it stays
+        // at the absolute window bottom, unaffected by content padding
+        val decorView = (contentView.rootView as? ViewGroup) ?: return
+
+        val viewContext = contentView.context
         val density = viewContext.resources.displayMetrics.density
 
         // Calculate keyboard height up-front (available immediately)
-        val navBarHeight = getNavigationBarHeight(rootView)
+        val navBarHeight = getNavigationBarHeight(contentView)
         keyboardHeightPx = (KEYBOARD_HEIGHT_DP * density).toInt() + navBarHeight
 
         val view = SecureKeyboardView(viewContext)
@@ -402,7 +408,8 @@ class SecureKey private constructor(
             gravity = android.view.Gravity.BOTTOM
         }
 
-        rootView.addView(view, params)
+        // Add keyboard to DecorView — separate from content area
+        decorView.addView(view, params)
         keyboardView = view
 
         // Listen for inset changes (rotation, nav bar changes)
