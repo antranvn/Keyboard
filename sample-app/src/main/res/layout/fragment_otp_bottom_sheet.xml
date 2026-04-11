@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="?attr/colorSurface"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
+    android:paddingTop="24dp"
+    android:paddingBottom="32dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="@string/otp_sheet_title"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textColor="?attr/colorPrimary" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="4dp"
+        android:text="@string/otp_sheet_subtitle"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?android:attr/textColorSecondary" />
+
+    <LinearLayout
+        android:id="@+id/otpRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="32dp"
+        android:orientation="horizontal">
+
+        <com.securekey.sdk.ui.SecureEditText
+            android:id="@+id/otp1"
+            style="@style/OtpDigit" />
+
+        <com.securekey.sdk.ui.SecureEditText
+            android:id="@+id/otp2"
+            style="@style/OtpDigit" />
+
+        <com.securekey.sdk.ui.SecureEditText
+            android:id="@+id/otp3"
+            style="@style/OtpDigit" />
+
+        <com.securekey.sdk.ui.SecureEditText
+            android:id="@+id/otp4"
+            style="@style/OtpDigit" />
+
+        <com.securekey.sdk.ui.SecureEditText
+            android:id="@+id/otp5"
+            style="@style/OtpDigit" />
+
+        <com.securekey.sdk.ui.SecureEditText
+            android:id="@+id/otp6"
+            style="@style/OtpDigit" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="24dp"
+        android:text="@string/otp_sheet_note"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?android:attr/textColorSecondary" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/resendButton"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:text="@string/otp_resend" />
+
+</LinearLayout>
