@@ -209,6 +209,11 @@ class SecureKey private constructor(
     }
 
     private fun showForMode(mode: KeyboardMode, targetView: EditText) {
+        // If focus arrived from a non-secure field, the system IME is still up.
+        // Dismiss it before adding our own bottom padding so adjustResize doesn't
+        // compound with applyContentPadding and over-push the layout.
+        suppressor.hideSystemKeyboard(targetView)
+
         val alreadyVisible = keyboardView?.visibility == View.VISIBLE && currentMode == mode
 
         currentMode = mode
