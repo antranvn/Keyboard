@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import com.securekey.sdk.core.Key
 import com.securekey.sdk.core.KeyType
 import com.securekey.sdk.core.KeyboardLayout
+import com.securekey.sdk.core.KeyboardMode
 
 /**
  * Renders the keyboard on a Canvas with Gboard-style visuals.
@@ -70,6 +71,7 @@ class KeyboardRenderer {
 
     private var pressedKey: Key? = null
     private var density: Float = 1f
+    private var currentMode: KeyboardMode? = null
 
     fun setDensity(d: Float) {
         density = d
@@ -83,6 +85,8 @@ class KeyboardRenderer {
 
     /** Draw the entire keyboard */
     fun draw(canvas: Canvas, layout: KeyboardLayout) {
+        currentMode = layout.mode
+
         // Draw background
         backgroundPaint.color = keyboardBackgroundColor
         canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), backgroundPaint)
@@ -244,11 +248,16 @@ class KeyboardRenderer {
             else -> keyTextColor
         }
 
-        textPaint.textSize = when {
-            key.type == KeyType.ACTION -> keyTextSize * 0.65f
-            key.type == KeyType.MODIFIER -> keyTextSize * 0.6f
-            key.type == KeyType.NUMERIC -> keyTextSize * 0.8f
-            else -> keyTextSize * 0.9f
+        // In pad-style layouts, keys are large — bump every label accordingly
+        // so Done/Paste/etc don't look tiny next to the big digits.
+        val isNumericPad = currentMode == KeyboardMode.NUMERIC_PIN ||
+            currentMode == KeyboardMode.NUMERIC_OTP ||
+            currentMode == KeyboardMode.AMOUNT_PAD
+        textPaint.textSize = when (key.type) {
+            KeyType.ACTION -> if (isNumericPad) keyTextSize * 0.85f else keyTextSize * 0.65f
+            KeyType.MODIFIER -> keyTextSize * 0.6f
+            KeyType.NUMERIC -> if (isNumericPad) keyTextSize * 1.4f else keyTextSize * 0.8f
+            else -> if (isNumericPad) keyTextSize * 0.85f else keyTextSize * 0.9f
         }
 
         textPaint.typeface = when {
