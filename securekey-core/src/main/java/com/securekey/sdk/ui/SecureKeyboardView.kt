@@ -128,11 +128,14 @@ class SecureKeyboardView @JvmOverloads constructor(
     }
 
     /** Dismiss the keyboard with animation */
-    fun dismiss(onComplete: (() -> Unit)? = null) {
-        animator.animateDismiss {
-            visibility = GONE
-            onComplete?.invoke()
-        }
+    fun dismiss(onUpdate: ((Float) -> Unit)? = null, onComplete: (() -> Unit)? = null) {
+        animator.animateDismiss(
+            onUpdate = onUpdate,
+            onComplete = {
+                visibility = GONE
+                onComplete?.invoke()
+            }
+        )
     }
 
     override fun onDetachedFromWindow() {

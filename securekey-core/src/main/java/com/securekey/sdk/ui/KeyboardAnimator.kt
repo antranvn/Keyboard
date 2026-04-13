@@ -48,13 +48,14 @@ class KeyboardAnimator(private val view: View) {
     }
 
     /** Slide-down dismiss animation */
-    fun animateDismiss(onComplete: (() -> Unit)? = null) {
+    fun animateDismiss(onUpdate: ((Float) -> Unit)? = null, onComplete: (() -> Unit)? = null) {
         showAnimator?.cancel()
 
         val scale = getAnimationScale()
         if (scale == 0f) {
             view.translationY = view.height.toFloat()
             view.alpha = 0f
+            onUpdate?.invoke(1f)
             onComplete?.invoke()
             return
         }
@@ -66,6 +67,7 @@ class KeyboardAnimator(private val view: View) {
                 val progress = animator.animatedValue as Float
                 view.translationY = view.height * progress
                 view.alpha = 1f - progress
+                onUpdate?.invoke(progress)
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {

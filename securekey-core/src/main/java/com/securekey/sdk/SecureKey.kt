@@ -126,12 +126,29 @@ class SecureKey private constructor(
     /** Dismiss the keyboard */
     fun dismiss() {
         if (!isKeyboardVisible) return
-        keyboardView?.dismiss {
-            memoryManager.onKeyboardDismiss()
-            restoreContentPadding()
-            isKeyboardVisible = false
-            keyboardStateListener?.onKeyboardHidden()
-        }
+        val root = contentRoot
+        val paddingExtra = keyboardHeightPx
+        keyboardView?.dismiss(
+            onUpdate = { progress ->
+                // Gradually reduce content padding in sync with the slide-down animation
+                // so layout recomputation is spread across frames instead of a single jump
+                if (root != null) {
+                    val animated = (paddingExtra * (1f - progress)).toInt()
+                    root.setPadding(
+                        root.paddingLeft,
+                        root.paddingTop,
+                        root.paddingRight,
+                        originalContentBottomPadding + animated
+                    )
+                }
+            },
+            onComplete = {
+                memoryManager.onKeyboardDismiss()
+                restoreContentPadding()
+                isKeyboardVisible = false
+                keyboardStateListener?.onKeyboardHidden()
+            }
+        )
     }
 
     /**
