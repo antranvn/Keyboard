@@ -263,6 +263,8 @@ class SecureKey private constructor(
             config.theme.applyTo(view.renderer)
             view.touchHandler.hapticEnabled = config.hapticFeedbackEnabled
             inputProcessor.getShiftState().reset()
+            view.renderer.shiftActive = false
+            view.renderer.capsLockOn = false
             view.setLayout(layout)
         }
 
@@ -387,8 +389,10 @@ class SecureKey private constructor(
     private fun refreshShiftLabels() {
         val view = keyboardView ?: return
         val baseLayout = currentBaseLayout ?: return
-        val shiftActive = inputProcessor.getShiftState().isActive
-        val shifted = baseLayout.withShiftApplied(shiftActive)
+        val shiftState = inputProcessor.getShiftState()
+        view.renderer.shiftActive = shiftState.isActive
+        view.renderer.capsLockOn = shiftState.isCapsLock
+        val shifted = baseLayout.withShiftApplied(shiftState.isActive)
         view.setLayout(shifted)
     }
 

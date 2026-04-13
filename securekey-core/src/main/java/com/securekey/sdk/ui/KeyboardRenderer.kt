@@ -72,6 +72,9 @@ class KeyboardRenderer {
     private var pressedKey: Key? = null
     private var density: Float = 1f
     private var currentMode: KeyboardMode? = null
+    /** Current shift state — controls whether the shift icon is outline, filled, or underlined */
+    var shiftActive: Boolean = false
+    var capsLockOn: Boolean = false
 
     fun setDensity(d: Float) {
         density = d
@@ -150,40 +153,62 @@ class KeyboardRenderer {
         }
     }
 
-    /** Draw shift arrow icon (like Gboard) */
+    /** Draw shift arrow icon with curved edges (like Gboard) */
     private fun drawShiftIcon(canvas: Canvas, bounds: RectF, isModifier: Boolean) {
         val iconColor = if (isModifier) modifierKeyTextColor else keyTextColor
         val iconSize = 20f * density
         val cx = bounds.centerX()
         val cy = bounds.centerY()
 
-        iconPath.reset()
-        // Arrow head pointing up
         val arrowTop = cy - iconSize * 0.5f
         val arrowMid = cy - iconSize * 0.05f
         val arrowWidth = iconSize * 0.55f
         val stemWidth = iconSize * 0.22f
         val stemBottom = cy + iconSize * 0.45f
+        val curve = iconSize * 0.08f
 
-        iconPath.moveTo(cx, arrowTop)                         // Top point
-        iconPath.lineTo(cx + arrowWidth, arrowMid)            // Right of arrow
-        iconPath.lineTo(cx + stemWidth, arrowMid)             // Right inner
-        iconPath.lineTo(cx + stemWidth, stemBottom)            // Bottom right
-        iconPath.lineTo(cx - stemWidth, stemBottom)            // Bottom left
-        iconPath.lineTo(cx - stemWidth, arrowMid)             // Left inner
-        iconPath.lineTo(cx - arrowWidth, arrowMid)            // Left of arrow
+        iconPath.reset()
+        // Top point with rounded tip
+        iconPath.moveTo(cx, arrowTop)
+        // Right side of arrow with curve at the corner
+        iconPath.quadTo(cx + arrowWidth * 0.5f, (arrowTop + arrowMid) * 0.5f, cx + arrowWidth, arrowMid)
+        // Curve into the right inner notch
+        iconPath.quadTo(cx + arrowWidth - curve, arrowMid + curve, cx + stemWidth, arrowMid)
+        // Right side of stem with rounded bottom-right corner
+        iconPath.lineTo(cx + stemWidth, stemBottom - curve)
+        iconPath.quadTo(cx + stemWidth, stemBottom, cx + stemWidth - curve, stemBottom)
+        // Bottom edge of stem with rounded bottom-left corner
+        iconPath.lineTo(cx - stemWidth + curve, stemBottom)
+        iconPath.quadTo(cx - stemWidth, stemBottom, cx - stemWidth, stemBottom - curve)
+        // Left side of stem up to notch
+        iconPath.lineTo(cx - stemWidth, arrowMid)
+        // Curve into the left arrow wing
+        iconPath.quadTo(cx - arrowWidth + curve, arrowMid + curve, cx - arrowWidth, arrowMid)
+        // Left side of arrow back to top
+        iconPath.quadTo(cx - arrowWidth * 0.5f, (arrowTop + arrowMid) * 0.5f, cx, arrowTop)
         iconPath.close()
 
-        // Check if shift is active (label is uppercase indicator)
-        // Filled when active, outline when inactive
-        iconFillPaint.color = iconColor
-        iconFillPaint.style = Paint.Style.FILL
-        canvas.drawPath(iconPath, iconFillPaint)
+        if (shiftActive || capsLockOn) {
+            // Filled icon when shift is active
+            iconFillPaint.color = iconColor
+            iconFillPaint.style = Paint.Style.FILL
+            canvas.drawPath(iconPath, iconFillPaint)
 
-        // Draw outline too for cleaner look
-        iconPaint.color = iconColor
-        iconPaint.strokeWidth = 1.5f * density
-        canvas.drawPath(iconPath, iconPaint)
+            // Draw underline for caps lock to distinguish from single shift
+            if (capsLockOn) {
+                val underlineY = stemBottom + iconSize * 0.15f
+                iconPaint.color = iconColor
+                iconPaint.style = Paint.Style.STROKE
+                iconPaint.strokeWidth = 2f * density
+                canvas.drawLine(cx - stemWidth, underlineY, cx + stemWidth, underlineY, iconPaint)
+            }
+        } else {
+            // Outline only when shift is off
+            iconPaint.color = iconColor
+            iconPaint.style = Paint.Style.STROKE
+            iconPaint.strokeWidth = 1.8f * density
+            canvas.drawPath(iconPath, iconPaint)
+        }
     }
 
     /** Draw backspace icon (rounded rectangle with X, like Gboard) */
