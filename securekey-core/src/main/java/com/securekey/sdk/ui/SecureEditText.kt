@@ -15,7 +15,7 @@ import androidx.appcompat.widget.AppCompatEditText
  * text selection handles, long-press menu, suggestions, and
  * sets FLAG_SECURE to prevent screen capture of input content.
  */
-class SecureEditText @JvmOverloads constructor(
+open class SecureEditText @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = android.R.attr.editTextStyle
