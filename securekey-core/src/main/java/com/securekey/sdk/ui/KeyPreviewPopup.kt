@@ -32,7 +32,10 @@ class KeyPreviewPopup {
     private var animationStartTime: Long = 0L
 
     var popupOffsetDp: Float = 12f
-    var scaleFactor: Float = 1.3f
+    /** Fixed popup width in dp — consistent across all keys */
+    var popupWidthDp: Float = 52f
+    /** Fixed popup height in dp — consistent across all keys */
+    var popupHeightDp: Float = 56f
     var animationDurationMs: Long = 80L
     var backgroundColor: Int = Color.parseColor("#616161")
     var textColor: Int = Color.WHITE
@@ -55,22 +58,16 @@ class KeyPreviewPopup {
         activeKey = null
     }
 
-    /** Draw the popup on the canvas */
-    fun draw(canvas: Canvas, density: Float) {
-        val key = activeKey ?: return
-
-        // Animation progress
-        val elapsed = System.currentTimeMillis() - animationStartTime
-        val progress = if (animationDurationMs > 0) {
-            (elapsed.toFloat() / animationDurationMs).coerceIn(0f, 1f)
-        } else {
-            1f
-        }
-        val scale = interpolator.getInterpolation(progress)
+    /**
+     * Draw the popup on the canvas.
+     * Returns true if the animation is still in progress and another frame is needed.
+     */
+    fun draw(canvas: Canvas, density: Float): Boolean {
+        val key = activeKey ?: return false
 
         val keyBounds = key.bounds
-        val popupWidth = keyBounds.width() * scaleFactor
-        val popupHeight = keyBounds.height() * 1.2f
+        val popupWidth = popupWidthDp * density
+        val popupHeight = popupHeightDp * density
         val stemHeight = 8f * density
         val offsetPx = popupOffsetDp * density
         val centerX = keyBounds.centerX()
@@ -92,6 +89,19 @@ class KeyPreviewPopup {
         }
         if (bodyBounds.top < 0f) {
             bodyBounds.offset(0f, -bodyBounds.top)
+        }
+
+        // Animate scale with overshoot for a snappy pop-in feel
+        val elapsed = System.currentTimeMillis() - animationStartTime
+        val animating: Boolean
+        val scale: Float
+        if (animationDurationMs > 0 && elapsed < animationDurationMs) {
+            val progress = elapsed.toFloat() / animationDurationMs
+            scale = interpolator.getInterpolation(progress)
+            animating = true
+        } else {
+            scale = 1f
+            animating = false
         }
 
         canvas.save()
@@ -118,6 +128,7 @@ class KeyPreviewPopup {
         canvas.drawText(key.label, bodyBounds.centerX(), textY, textPaint)
 
         canvas.restore()
+        return animating
     }
 
     /** Whether the popup is currently visible */
