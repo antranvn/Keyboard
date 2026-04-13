@@ -1,10 +1,12 @@
 package com.securekey.sdk
 
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ScrollView
@@ -127,28 +129,38 @@ class SecureKey private constructor(
     fun dismiss() {
         if (!isKeyboardVisible) return
         val root = contentRoot
-        val paddingExtra = keyboardHeightPx
-        keyboardView?.dismiss(
-            onUpdate = { progress ->
-                // Gradually reduce content padding in sync with the slide-down animation
-                // so layout recomputation is spread across frames instead of a single jump
-                if (root != null) {
-                    val animated = (paddingExtra * (1f - progress)).toInt()
+        val startPadding = root?.paddingBottom ?: 0
+        val endPadding = originalContentBottomPadding
+
+        // Animate content padding down in sync with keyboard slide-out
+        if (root != null && startPadding != endPadding) {
+            val animator = ValueAnimator.ofInt(startPadding, endPadding).apply {
+                duration = DISMISS_ANIMATION_DURATION
+                interpolator = DecelerateInterpolator()
+                addUpdateListener { anim ->
                     root.setPadding(
                         root.paddingLeft,
                         root.paddingTop,
                         root.paddingRight,
-                        originalContentBottomPadding + animated
+                        anim.animatedValue as Int
                     )
                 }
-            },
-            onComplete = {
-                memoryManager.onKeyboardDismiss()
-                restoreContentPadding()
-                isKeyboardVisible = false
-                keyboardStateListener?.onKeyboardHidden()
             }
-        )
+            animator.start()
+        }
+
+        keyboardView?.dismiss {
+            memoryManager.onKeyboardDismiss()
+            // Ensure final padding is correct after animation
+            root?.setPadding(
+                root.paddingLeft,
+                root.paddingTop,
+                root.paddingRight,
+                originalContentBottomPadding
+            )
+            isKeyboardVisible = false
+            keyboardStateListener?.onKeyboardHidden()
+        }
     }
 
     /**
@@ -194,6 +206,8 @@ class SecureKey private constructor(
      * The SDK singleton remains alive for reuse in other activities.
      */
     fun onDestroy() {
+        paddingAnimator?.cancel()
+        paddingAnimator = null
         restoreContentPadding()
         cleanupKeyboardView()
         focusManager.destroy()
@@ -279,7 +293,7 @@ class SecureKey private constructor(
         if (!alreadyVisible) {
             view.show()
             isKeyboardVisible = true
-            applyContentPadding()
+            animateContentPadding()
             keyboardStateListener?.onKeyboardShown(keyboardHeightPx)
             // Scroll the focused field into view
             scrollFieldIntoView(targetView)
@@ -302,6 +316,28 @@ class SecureKey private constructor(
         )
     }
 
+    private var paddingAnimator: ValueAnimator? = null
+
+    private fun animateContentPadding() {
+        val root = contentRoot ?: return
+        originalContentBottomPadding = root.paddingBottom
+        val target = originalContentBottomPadding + keyboardHeightPx
+
+        paddingAnimator?.cancel()
+        paddingAnimator = ValueAnimator.ofInt(root.paddingBottom, target).apply {
+            duration = SHOW_ANIMATION_DURATION
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { anim ->
+                root.setPadding(
+                    root.paddingLeft,
+                    root.paddingTop,
+                    root.paddingRight,
+                    anim.animatedValue as Int
+                )
+            }
+            start()
+        }
+    }
     /** Restore original content padding when keyboard hides */
     private fun restoreContentPadding() {
         val root = contentRoot ?: return
@@ -493,6 +529,8 @@ class SecureKey private constructor(
     companion object {
         /** Keyboard height in dp — matches Gboard compact layout */
         internal const val KEYBOARD_HEIGHT_DP = 230
+        private const val SHOW_ANIMATION_DURATION = 250L
+        private const val DISMISS_ANIMATION_DURATION = 200L
 
         @Volatile
         private var instance: SecureKey? = null
