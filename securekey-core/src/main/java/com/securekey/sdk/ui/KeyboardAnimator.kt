@@ -55,6 +55,7 @@ class KeyboardAnimator(private val view: View) {
         if (scale == 0f) {
             view.translationY = view.height.toFloat()
             view.alpha = 0f
+
             onComplete?.invoke()
             return
         }

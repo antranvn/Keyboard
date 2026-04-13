@@ -114,7 +114,10 @@ class SecureKeyboardView @JvmOverloads constructor(
         super.onDraw(canvas)
         val layout = currentLayout ?: return
         renderer.draw(canvas, layout)
-        keyPreview.draw(canvas, resources.displayMetrics.density)
+        val animating = keyPreview.draw(canvas, resources.displayMetrics.density)
+        if (animating) {
+            invalidate()
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

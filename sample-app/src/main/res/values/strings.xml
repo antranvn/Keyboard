@@ -1,4 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SecureKey Sample</string>
+
+    <!-- Entry chooser -->
+    <string name="entry_title">SecureKey Sample</string>
+    <string name="entry_subtitle">Choose an integration style</string>
+    <string name="entry_compose">Jetpack Compose</string>
+    <string name="entry_xml">XML / Views (Legacy)</string>
+
+    <!-- Login -->
+    <string name="login_title">SecureKey Bank</string>
+    <string name="login_subtitle">Sign in to continue</string>
+    <string name="login_username_hint">Username</string>
+    <string name="login_password_hint">Password</string>
+    <string name="login_sign_in">Sign In</string>
+    <string name="login_username_note">Username uses the system keyboard</string>
+    <string name="login_password_note">Password uses SecureKey QWERTY</string>
+
+    <!-- OTP -->
+    <string name="otp_activity_title">Verify OTP</string>
+    <string name="otp_backdrop">Verification in progress…</string>
+    <string name="otp_sheet_title">OTP Verification</string>
+    <string name="otp_sheet_subtitle">Enter the 6-digit code sent to your phone</string>
+    <string name="otp_sheet_note">Uses SecureKey NUMERIC_OTP in a BottomSheetDialog</string>
+    <string name="otp_resend">Resend Code</string>
+
+    <!-- PIN -->
+    <string name="pin_title">Set PIN</string>
+    <string name="pin_subtitle">Create a 4-digit PIN</string>
+    <string name="pin_subtitle_confirm">Confirm your PIN</string>
+    <string name="pin_error_mismatch">PINs do not match. Try again.</string>
+    <string name="pin_note">Uses SecureKey NUMERIC_PIN</string>
+
+    <!-- Transfer -->
+    <string name="transfer_title">Transfer</string>
+    <string name="transfer_recipient_hint">Recipient</string>
+    <string name="transfer_amount_hint">Amount</string>
+    <string name="transfer_quick_amounts">Quick amounts</string>
+    <string name="transfer_button">Send</string>
+    <string name="transfer_success">Transfer submitted</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_keyboard">Keyboard</string>
+    <string name="settings_haptic">Haptic Feedback</string>
+    <string name="settings_key_preview">Key Preview Popup</string>
+    <string name="settings_shuffle">Shuffle Numeric Keys</string>
+    <string name="settings_sound">Sound Feedback</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_dark_theme">Dark Theme</string>
+    <string name="settings_section_security">Security</string>
 </resources>

@@ -33,6 +33,16 @@ class FocusManager {
         }
     }
 
+    // Tapping an already-focused field must re-show the keyboard
+    // (focus-change listener doesn't fire when focus doesn't change,
+    // e.g. after the user pressed Done to dismiss the keyboard).
+    private val clickListener = View.OnClickListener { view ->
+        val mode = registeredFields[view] ?: return@OnClickListener
+        cancelPendingDismiss()
+        currentFocusedView = view
+        onShowKeyboard?.invoke(view, mode)
+    }
+
     private fun scheduleDismiss() {
         cancelPendingDismiss()
         val runnable = Runnable {
@@ -57,11 +67,14 @@ class FocusManager {
     fun register(view: View, mode: KeyboardMode) {
         registeredFields[view] = mode
         view.onFocusChangeListener = focusListener
+        view.setOnClickListener(clickListener)
     }
 
     /** Unregister an EditText */
     fun unregister(view: View) {
         registeredFields.remove(view)
+        view.onFocusChangeListener = null
+        view.setOnClickListener(null)
         if (view == currentFocusedView) {
             currentFocusedView = null
         }
