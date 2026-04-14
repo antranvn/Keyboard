@@ -1,8 +1,10 @@
 package com.securekey.sample.ui.screens
 
+import android.os.Build
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.util.Log
 import android.widget.LinearLayout
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -12,13 +14,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.securekey.sample.credentials.createCredential
 import com.securekey.sample.credentials.getCredential
+import com.securekey.sample.credentials.prepareGetCredential
 import com.securekey.sample.ui.findActivity
 import com.securekey.sdk.SecureKey
 import com.securekey.sdk.core.KeyboardMode
 import com.securekey.sdk.ui.SecureEditText
+
+private const val TAG = "LoginScreen"
 
 @Composable
 fun LoginScreen(
@@ -33,12 +39,41 @@ fun LoginScreen(
     var usernameView by remember { mutableStateOf<SecureEditText?>(null) }
     var passwordView by remember { mutableStateOf<SecureEditText?>(null) }
 
-    val isLoading by viewModel.isLoading.collectAsState()
-    val statusMessage by viewModel.statusMessage.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val hasSavedPassword by viewModel.hasSavedPassword.collectAsStateWithLifecycle()
+
+    LaunchedEffect(activity) {
+        val a = activity ?: run {
+            Log.w(TAG, "activity not resolved; skipping prepareGetCredential")
+            return@LaunchedEffect
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            Log.d(TAG, "prepareGetCredential: probing for saved password")
+            viewModel.checkSavedPassword(prepare = { req -> prepareGetCredential(a, req) })
+        } else {
+            Log.d(TAG, "API < 34: skipping probe, assuming saved password available")
+            viewModel.assumeSavedPasswordAvailable()
+        }
+    }
+
+    LaunchedEffect(hasSavedPassword) {
+        Log.d(TAG, "hasSavedPassword = $hasSavedPassword")
+    }
+
+    LaunchedEffect(isLoading) {
+        Log.d(TAG, "isLoading = $isLoading")
+    }
+
+    LaunchedEffect(statusMessage, errorMessage) {
+        statusMessage?.let { Log.d(TAG, "statusMessage: $it") }
+        errorMessage?.let { Log.w(TAG, "errorMessage: $it") }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvent.collect { event ->
+            Log.d(TAG, "nav event: $event")
             when (event) {
                 is LoginNavEvent.NavigateToHome -> onLoginSuccess()
             }
@@ -126,37 +161,51 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedButton(
-            onClick = {
-                val a = activity ?: return@OutlinedButton
-                viewModel.signInWithSavedPassword(
-                    getCredential = { req -> getCredential(a, req) },
-                    onFilled = { id, pw ->
-                        usernameView?.setText(id)
-                        passwordView?.setText(pw)
-                    }
-                )
-            },
-            enabled = activity != null && !isLoading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Sign in with saved password")
-        }
+        if (hasSavedPassword) {
+            OutlinedButton(
+                onClick = {
+                    val a = activity ?: return@OutlinedButton
+                    Log.d(TAG, "signIn tapped: calling getCredential")
+                    viewModel.signInWithSavedPassword(
+                        getCredential = { req ->
+                            Log.d(TAG, "getCredential request: options=${req.credentialOptions.map { it::class.simpleName }}")
+                            getCredential(a, req).also {
+                                Log.d(TAG, "getCredential response type=${it.credential::class.simpleName}")
+                            }
+                        },
+                        onFilled = { id, pw ->
+                            Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
+                            usernameView?.setText(id)
+                            passwordView?.setText(pw)
+                        }
+                    )
+                },
+                enabled = activity != null && !isLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Sign in with saved password")
+            }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Button(
             onClick = {
                 val a = activity
+                Log.d(TAG, "login tapped: activity=${a != null} username.blank=${username.isBlank()} password.blank=${password.isBlank()}")
                 if (a != null) {
-                    println("@@@@ activity is not null")
                     viewModel.saveAndProceed(
                         username = username,
                         password = password,
-                        createCredential = { req -> createCredential(a, req) }
+                        createCredential = { req ->
+                            Log.d(TAG, "createCredential: type=${req.type}")
+                            createCredential(a, req).also {
+                                Log.d(TAG, "createCredential response type=${it.type}")
+                            }
+                        }
                     )
                 } else {
-                    println("@@@@ activity is null")
+                    Log.w(TAG, "activity null; skipping save, navigating home")
                     onLoginSuccess()
                 }
             },
