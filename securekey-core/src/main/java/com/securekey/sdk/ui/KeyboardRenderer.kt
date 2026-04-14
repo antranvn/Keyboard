@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.securekey.sdk.core.Key
@@ -43,6 +44,16 @@ class KeyboardRenderer {
     }
 
     private val iconPath = Path()
+
+    private val swipeTrailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private var swipePoints: List<PointF> = emptyList()
+
+    /** Tint used for the swipe trail. Defaults to the action key color. */
+    var swipeTrailColor: Int = Color.parseColor("#4285F4")
 
     // Character keys (letters, numbers, punctuation)
     var keyBackgroundColor: Int = Color.WHITE
@@ -86,6 +97,11 @@ class KeyboardRenderer {
         pressedKey = key
     }
 
+    /** Set the current swipe path for trail rendering. Pass empty list to clear. */
+    fun setSwipePath(points: List<PointF>) {
+        swipePoints = points
+    }
+
     /** Draw the entire keyboard */
     fun draw(canvas: Canvas, layout: KeyboardLayout) {
         currentMode = layout.mode
@@ -99,6 +115,34 @@ class KeyboardRenderer {
             for (key in row) {
                 drawKey(canvas, key)
             }
+        }
+
+        // Draw swipe trail above keys so the gesture is visible
+        drawSwipeTrail(canvas)
+    }
+
+    private fun drawSwipeTrail(canvas: Canvas) {
+        val points = swipePoints
+        if (points.size < 2) return
+
+        // Keep only recent samples for a fading tail effect
+        val maxSamples = 48
+        val startIndex = (points.size - maxSamples).coerceAtLeast(0)
+        val visible = points.size - startIndex
+
+        // Draw as fading segments: older = thinner + more transparent
+        for (i in startIndex until points.size - 1) {
+            val idxInWindow = i - startIndex
+            val t = idxInWindow.toFloat() / (visible - 1).coerceAtLeast(1)
+            val alpha = (40 + (215 * t)).toInt().coerceIn(0, 255)
+            val width = (4f + 8f * t) * density
+
+            swipeTrailPaint.color = (swipeTrailColor and 0x00FFFFFF) or (alpha shl 24)
+            swipeTrailPaint.strokeWidth = width
+
+            val p1 = points[i]
+            val p2 = points[i + 1]
+            canvas.drawLine(p1.x, p1.y, p2.x, p2.y, swipeTrailPaint)
         }
     }
 

@@ -292,6 +292,12 @@ class SecureKey private constructor(
             inputProcessor.processKey(key)
         }
 
+        // Swipe typing: enabled for all QWERTY_FULL fields.
+        view.touchHandler.swipeEnabled = mode == KeyboardMode.QWERTY_FULL
+        view.touchHandler.onSwipeCommitted = { keys ->
+            keys.forEach { inputProcessor.processKey(it) }
+        }
+
         if (!alreadyVisible) {
             view.show()
             isKeyboardVisible = true

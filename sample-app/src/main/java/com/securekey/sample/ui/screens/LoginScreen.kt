@@ -1,23 +1,49 @@
 package com.securekey.sample.ui.screens
 
+import android.text.Editable
 import android.text.InputType
-import android.widget.EditText
+import android.text.TextWatcher
 import android.widget.LinearLayout
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.securekey.sample.credentials.createCredential
+import com.securekey.sample.credentials.getCredential
+import com.securekey.sample.ui.findActivity
 import com.securekey.sdk.SecureKey
 import com.securekey.sdk.core.KeyboardMode
 import com.securekey.sdk.ui.SecureEditText
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    viewModel: LoginViewModel = viewModel()
+) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+
+    var usernameView by remember { mutableStateOf<SecureEditText?>(null) }
+    var passwordView by remember { mutableStateOf<SecureEditText?>(null) }
+
+    val isLoading by viewModel.isLoading.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.navigationEvent.collect { event ->
+            when (event) {
+                is LoginNavEvent.NavigateToHome -> onLoginSuccess()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -42,11 +68,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Username field using SecureEditText
         AndroidView(
             modifier = Modifier.fillMaxWidth(),
-            factory = { context ->
-                SecureEditText(context).apply {
+            factory = { ctx ->
+                SecureEditText(ctx).apply {
                     hint = "Username"
                     inputType = InputType.TYPE_CLASS_TEXT
                     setPadding(48, 40, 48, 40)
@@ -56,22 +81,26 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     )
                     SecureKey.getInstance().attachTo(this, KeyboardMode.QWERTY_FULL)
+                    addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                        override fun afterTextChanged(s: Editable?) {
+                            val text = s?.toString().orEmpty()
+                            if (text != username) username = text
+                        }
+                    })
+                    usernameView = this
                 }
             },
-            update = { editText ->
-                if (editText.text.toString() != username) {
-                    username = editText.text.toString()
-                }
-            }
+            update = { }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Password field using SecureEditText
         AndroidView(
             modifier = Modifier.fillMaxWidth(),
-            factory = { context ->
-                SecureEditText(context).apply {
+            factory = { ctx ->
+                SecureEditText(ctx).apply {
                     hint = "Password"
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
                     setPadding(48, 40, 48, 40)
@@ -81,26 +110,86 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     )
                     SecureKey.getInstance().attachTo(this, KeyboardMode.QWERTY_FULL)
+                    addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                        override fun afterTextChanged(s: Editable?) {
+                            val text = s?.toString().orEmpty()
+                            if (text != password) password = text
+                        }
+                    })
+                    passwordView = this
                 }
             },
-            update = { editText ->
-                if (editText.text.toString() != password) {
-                    password = editText.text.toString()
-                }
-            }
+            update = { }
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedButton(
+            onClick = {
+                val a = activity ?: return@OutlinedButton
+                viewModel.signInWithSavedPassword(
+                    getCredential = { req -> getCredential(a, req) },
+                    onFilled = { id, pw ->
+                        usernameView?.setText(id)
+                        passwordView?.setText(pw)
+                    }
+                )
+            },
+            enabled = activity != null && !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Sign in with saved password")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
-            onClick = onLoginSuccess,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = true
+            onClick = {
+                val a = activity
+                if (a != null) {
+                    println("@@@@ activity is not null")
+                    viewModel.saveAndProceed(
+                        username = username,
+                        password = password,
+                        createCredential = { req -> createCredential(a, req) }
+                    )
+                } else {
+                    println("@@@@ activity is null")
+                    onLoginSuccess()
+                }
+            },
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text("Login")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        errorMessage?.let { msg ->
+            Text(
+                text = msg,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        statusMessage?.let { msg ->
+            Text(
+                text = msg,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Text(
             text = "This login uses SecureKey QWERTY keyboard",

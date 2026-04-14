@@ -58,6 +58,11 @@ class SecureKeyboardView @JvmOverloads constructor(
             invalidate()
         }
 
+        touchHandler.onSwipePath = { points ->
+            renderer.setSwipePath(points)
+            invalidate()
+        }
+
         isFocusable = false
         isFocusableInTouchMode = false
 
