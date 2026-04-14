@@ -7,6 +7,7 @@ import android.util.AttributeSet
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.widget.AppCompatEditText
 
@@ -46,6 +47,22 @@ open class SecureEditText @JvmOverloads constructor(
         (context as? android.app.Activity)?.window?.addFlags(
             WindowManager.LayoutParams.FLAG_SECURE
         )
+    }
+
+    /**
+     * Enable autofill for this field so password managers can fill it.
+     * Autofill is disabled by default for security. Call this on fields
+     * where password manager integration is desired (e.g. login screens).
+     *
+     * @param hints one or more autofill hints such as
+     *   [View.AUTOFILL_HINT_USERNAME], [View.AUTOFILL_HINT_PASSWORD],
+     *   [View.AUTOFILL_HINT_EMAIL_ADDRESS], etc.
+     */
+    fun enableAutofill(vararg hints: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            importantForAutofill = IMPORTANT_FOR_AUTOFILL_YES
+            setAutofillHints(*hints)
+        }
     }
 
     override fun isSuggestionsEnabled(): Boolean = false
