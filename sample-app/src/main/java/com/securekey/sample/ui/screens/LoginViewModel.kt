@@ -50,6 +50,10 @@ class LoginViewModel : ViewModel() {
     private val _navigationEvent = MutableSharedFlow<LoginNavEvent>(extraBufferCapacity = 1)
     val navigationEvent: SharedFlow<LoginNavEvent> = _navigationEvent.asSharedFlow()
 
+    private var filledFromSavedCredential: Boolean = false
+    private var savedCredentialId: String? = null
+    private var savedCredentialPassword: String? = null
+
     fun signInWithSavedPassword(
         getCredential: suspend (GetCredentialRequest) -> GetCredentialResponse,
         onFilled: (id: String, password: String) -> Unit
@@ -63,9 +67,11 @@ class LoginViewModel : ViewModel() {
                 val response = getCredential(request)
                 when (val cred = response.credential) {
                     is PasswordCredential -> {
+                        filledFromSavedCredential = true
+                        savedCredentialId = cred.id
+                        savedCredentialPassword = cred.password
                         onFilled(cred.id, cred.password)
                         _statusMessage.value = "Filled from saved credential"
-                        _navigationEvent.emit(LoginNavEvent.NavigateToHome)
                     }
                     is CustomCredential -> {
                         _errorMessage.value = "Unsupported credential type: ${cred.type}"
@@ -90,6 +96,13 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             if (username.isBlank() || password.isBlank()) {
                 println("@@@@ username = ${username.isBlank()} or password ${password.isBlank()}")
+                _navigationEvent.emit(LoginNavEvent.NavigateToHome)
+                return@launch
+            }
+            if (filledFromSavedCredential &&
+                username == savedCredentialId &&
+                password == savedCredentialPassword
+            ) {
                 _navigationEvent.emit(LoginNavEvent.NavigateToHome)
                 return@launch
             }

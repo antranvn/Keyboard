@@ -1,4 +1,4 @@
-package com.securekey.sample.credentials
+package com.securekey.sdk.credentials
 
 import android.app.Activity
 import androidx.credentials.CreateCredentialRequest
@@ -22,4 +22,3 @@ suspend fun createCredential(
     val credentialManager = CredentialManager.create(activity)
     return credentialManager.createCredential(activity, request)
 }
-

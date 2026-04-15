@@ -11,8 +11,8 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.securekey.sample.credentials.createCredential
-import com.securekey.sample.credentials.getCredential
+import com.securekey.sdk.credentials.createCredential
+import com.securekey.sdk.credentials.getCredential
 import com.securekey.sample.databinding.FragmentLoginBinding
 import com.securekey.sample.ui.screens.LoginNavEvent
 import com.securekey.sample.ui.screens.LoginViewModel

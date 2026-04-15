@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.securekey.sample.credentials.createCredential
-import com.securekey.sample.credentials.getCredential
+import com.securekey.sdk.credentials.createCredential
+import com.securekey.sdk.credentials.getCredential
 import com.securekey.sample.ui.findActivity
 import com.securekey.sdk.SecureKey
 import com.securekey.sdk.core.KeyboardMode

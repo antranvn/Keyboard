@@ -63,6 +63,8 @@ afterEvaluate {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    api(libs.androidx.credentials)
+    api(libs.androidx.credentials.play.services.auth)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
