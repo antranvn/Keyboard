@@ -1,6 +1,5 @@
 package com.securekey.sample.ui.screens
 
-import android.os.Build
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -18,7 +17,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.securekey.sample.credentials.createCredential
 import com.securekey.sample.credentials.getCredential
-import com.securekey.sample.credentials.prepareGetCredential
 import com.securekey.sample.ui.findActivity
 import com.securekey.sdk.SecureKey
 import com.securekey.sdk.core.KeyboardMode
@@ -42,25 +40,6 @@ fun LoginScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-    val hasSavedPassword by viewModel.hasSavedPassword.collectAsStateWithLifecycle()
-
-    LaunchedEffect(activity) {
-        val a = activity ?: run {
-            Log.w(TAG, "activity not resolved; skipping prepareGetCredential")
-            return@LaunchedEffect
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            Log.d(TAG, "prepareGetCredential: probing for saved password")
-            viewModel.checkSavedPassword(prepare = { req -> prepareGetCredential(a, req) })
-        } else {
-            Log.d(TAG, "API < 34: skipping probe, assuming saved password available")
-            viewModel.assumeSavedPasswordAvailable()
-        }
-    }
-
-    LaunchedEffect(hasSavedPassword) {
-        Log.d(TAG, "hasSavedPassword = $hasSavedPassword")
-    }
 
     LaunchedEffect(isLoading) {
         Log.d(TAG, "isLoading = $isLoading")
@@ -161,33 +140,31 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (hasSavedPassword) {
-            OutlinedButton(
-                onClick = {
-                    val a = activity ?: return@OutlinedButton
-                    Log.d(TAG, "signIn tapped: calling getCredential")
-                    viewModel.signInWithSavedPassword(
-                        getCredential = { req ->
-                            Log.d(TAG, "getCredential request: options=${req.credentialOptions.map { it::class.simpleName }}")
-                            getCredential(a, req).also {
-                                Log.d(TAG, "getCredential response type=${it.credential::class.simpleName}")
-                            }
-                        },
-                        onFilled = { id, pw ->
-                            Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
-                            usernameView?.setText(id)
-                            passwordView?.setText(pw)
+        OutlinedButton(
+            onClick = {
+                val a = activity ?: return@OutlinedButton
+                Log.d(TAG, "signIn tapped: calling getCredential")
+                viewModel.signInWithSavedPassword(
+                    getCredential = { req ->
+                        Log.d(TAG, "getCredential request: options=${req.credentialOptions.map { it::class.simpleName }}")
+                        getCredential(a, req).also {
+                            Log.d(TAG, "getCredential response type=${it.credential::class.simpleName}")
                         }
-                    )
-                },
-                enabled = activity != null && !isLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Sign in with saved password")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
+                    },
+                    onFilled = { id, pw ->
+                        Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
+                        usernameView?.setText(id)
+                        passwordView?.setText(pw)
+                    }
+                )
+            },
+            enabled = activity != null && !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Sign in with saved password")
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {

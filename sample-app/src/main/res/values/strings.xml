@@ -14,6 +14,7 @@
     <string name="login_username_hint">Username</string>
     <string name="login_password_hint">Password</string>
     <string name="login_sign_in">Sign In</string>
+    <string name="login_sign_in_with_saved">Sign in with saved password</string>
     <string name="login_username_note">Username uses the system keyboard</string>
     <string name="login_password_note">Password uses SecureKey QWERTY</string>
 

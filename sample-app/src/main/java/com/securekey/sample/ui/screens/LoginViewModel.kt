@@ -9,7 +9,6 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.GetPasswordOption
 import androidx.credentials.PasswordCredential
-import androidx.credentials.PrepareGetCredentialResponse
 import androidx.credentials.exceptions.CreateCredentialCancellationException
 import androidx.credentials.exceptions.CreateCredentialCustomException
 import androidx.credentials.exceptions.CreateCredentialException
@@ -50,35 +49,6 @@ class LoginViewModel : ViewModel() {
 
     private val _navigationEvent = MutableSharedFlow<LoginNavEvent>(extraBufferCapacity = 1)
     val navigationEvent: SharedFlow<LoginNavEvent> = _navigationEvent.asSharedFlow()
-
-    private val _hasSavedPassword = MutableStateFlow(false)
-    val hasSavedPassword: StateFlow<Boolean> = _hasSavedPassword.asStateFlow()
-
-    fun assumeSavedPasswordAvailable() {
-        _hasSavedPassword.value = true
-    }
-
-    fun checkSavedPassword(
-        prepare: suspend (GetCredentialRequest) -> PrepareGetCredentialResponse
-    ) {
-        viewModelScope.launch {
-            try {
-                val response = prepare(GetCredentialRequest(listOf(GetPasswordOption())))
-                _hasSavedPassword.value = try {
-                    response.hasCredentialResults(PasswordCredential.TYPE_PASSWORD_CREDENTIAL)
-                } catch (se: SecurityException) {
-                    // hasCredentialResults() requires a privileged permission
-                    // (CREDENTIAL_MANAGER_QUERY_CANDIDATE_CREDENTIALS). Normal apps
-                    // can't query silently — fall back to showing the button.
-                    Log.d(TAG, "hasCredentialResults restricted; assuming available", se)
-                    true
-                }
-            } catch (e: GetCredentialException) {
-                Log.w(TAG, "prepareGetCredential failed: ${e::class.simpleName}", e)
-                _hasSavedPassword.value = false
-            }
-        }
-    }
 
     fun signInWithSavedPassword(
         getCredential: suspend (GetCredentialRequest) -> GetCredentialResponse,

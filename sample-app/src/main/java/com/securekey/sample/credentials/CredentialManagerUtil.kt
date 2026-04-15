@@ -6,7 +6,6 @@ import androidx.credentials.CreateCredentialResponse
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
-import androidx.credentials.PrepareGetCredentialResponse
 
 suspend fun getCredential(
     activity: Activity,
@@ -24,10 +23,3 @@ suspend fun createCredential(
     return credentialManager.createCredential(activity, request)
 }
 
-suspend fun prepareGetCredential(
-    activity: Activity,
-    request: GetCredentialRequest
-): PrepareGetCredentialResponse {
-    val credentialManager = CredentialManager.create(activity)
-    return credentialManager.prepareGetCredential(request)
-}
