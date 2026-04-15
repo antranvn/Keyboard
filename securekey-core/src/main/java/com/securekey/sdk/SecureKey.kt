@@ -9,6 +9,7 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -23,6 +24,7 @@ import com.securekey.sdk.security.IntegrityReport
 import com.securekey.sdk.security.SecureKeyDispatcher
 import com.securekey.sdk.security.SecureMemoryManager
 import com.securekey.sdk.ui.FocusManager
+import com.securekey.sdk.ui.KeyboardActionStrip
 import com.securekey.sdk.ui.SecureEditText
 import com.securekey.sdk.ui.SecureKeyboardView
 import com.securekey.sdk.ui.SystemKeyboardSuppressor
@@ -58,6 +60,12 @@ class SecureKey private constructor(
     private val inputProcessor = InputProcessor(dispatcher)
 
     private var keyboardView: SecureKeyboardView? = null
+    private var keyboardHost: LinearLayout? = null
+    private var actionStrip: KeyboardActionStrip? = null
+    private var actionLabel: String? = null
+    private var actionIconRes: Int? = null
+    private var actionOnClick: (() -> Unit)? = null
+    private var actionAllowedModes: Set<KeyboardMode> = setOf(KeyboardMode.QWERTY_FULL)
     private var currentMode: KeyboardMode? = null
     private var currentBaseLayout: KeyboardLayout? = null
     private var threatListener: OnSecurityThreatListener? = config.onSecurityThreat
@@ -158,6 +166,7 @@ class SecureKey private constructor(
                 root.paddingRight,
                 originalContentBottomPadding
             )
+            keyboardHost?.visibility = View.GONE
             isKeyboardVisible = false
             keyboardStateListener?.onKeyboardHidden()
         }
@@ -170,7 +179,7 @@ class SecureKey private constructor(
      */
     fun getKeyboardHeight(): Int {
         if (!isKeyboardVisible) return 0
-        return keyboardHeightPx
+        return totalKeyboardHeightPx()
     }
 
     /** Whether the keyboard is currently visible */
@@ -179,6 +188,40 @@ class SecureKey private constructor(
     /** Set keyboard visibility state listener */
     fun setKeyboardStateListener(listener: OnKeyboardStateListener) {
         keyboardStateListener = listener
+    }
+
+    /**
+     * Show a labelled action in a strip above the keyboard. The SDK renders the
+     * strip; the host app owns the click handler. Typical use: "Sign in with
+     * saved password" wired to Credential Manager.
+     *
+     * The strip appears only for keyboard modes in [allowedModes] — by default
+     * only [KeyboardMode.QWERTY_FULL], so it never shows on PIN/OTP/amount pads.
+     *
+     * @param label text shown in the strip
+     * @param iconRes optional drawable shown before the label (null = text only)
+     * @param allowedModes which keyboard modes should display this action
+     * @param onClick invoked on tap; SDK does not debounce
+     */
+    fun setKeyboardAction(
+        label: String,
+        iconRes: Int? = null,
+        allowedModes: Set<KeyboardMode> = setOf(KeyboardMode.QWERTY_FULL),
+        onClick: () -> Unit
+    ) {
+        actionLabel = label
+        actionIconRes = iconRes
+        actionAllowedModes = allowedModes
+        actionOnClick = onClick
+        refreshActionStrip()
+    }
+
+    /** Remove any previously set keyboard action. */
+    fun clearKeyboardAction() {
+        actionLabel = null
+        actionIconRes = null
+        actionOnClick = null
+        refreshActionStrip()
     }
 
     /** Get the current security report */
@@ -229,14 +272,67 @@ class SecureKey private constructor(
     }
 
     private fun cleanupKeyboardView() {
-        keyboardView?.let { view ->
-            (view.parent as? ViewGroup)?.removeView(view)
+        keyboardHost?.let { host ->
+            (host.parent as? ViewGroup)?.removeView(host)
         }
+        keyboardHost = null
         keyboardView = null
+        actionStrip = null
         currentMode = null
         currentBaseLayout = null
         isKeyboardVisible = false
         contentRoot = null
+    }
+
+    private fun actionStripHeightPx(): Int {
+        val density = context.resources.displayMetrics.density
+        return (KeyboardActionStrip.HEIGHT_DP * density).toInt()
+    }
+
+    private fun isActionVisibleForCurrentMode(): Boolean {
+        val label = actionLabel ?: return false
+        val mode = currentMode ?: return false
+        if (label.isBlank()) return false
+        return mode in actionAllowedModes
+    }
+
+    private fun refreshActionStrip() {
+        val strip = actionStrip ?: return
+        val host = keyboardHost ?: return
+        val shouldShow = isActionVisibleForCurrentMode()
+        if (shouldShow) {
+            strip.bind(actionLabel!!, actionIconRes) { actionOnClick?.invoke() }
+            strip.visibility = View.VISIBLE
+        } else {
+            strip.visibility = View.GONE
+        }
+        updateHostHeight(host)
+    }
+
+    private fun totalKeyboardHeightPx(): Int {
+        val strip = if (isActionVisibleForCurrentMode()) actionStripHeightPx() else 0
+        return keyboardHeightPx + strip
+    }
+
+    private fun updateHostHeight(host: ViewGroup) {
+        val newHeight = totalKeyboardHeightPx()
+        val lp = host.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (lp.height != newHeight) {
+            lp.height = newHeight
+            host.layoutParams = lp
+        }
+        if (isKeyboardVisible) {
+            val root = contentRoot
+            if (root != null) {
+                root.setPadding(
+                    root.paddingLeft,
+                    root.paddingTop,
+                    root.paddingRight,
+                    originalContentBottomPadding + newHeight
+                )
+            }
+            keyboardStateListener?.onKeyboardShown(newHeight)
+        }
     }
 
     private fun showForMode(mode: KeyboardMode, targetView: EditText) {
@@ -298,11 +394,14 @@ class SecureKey private constructor(
             keys.forEach { inputProcessor.processKey(it) }
         }
 
+        refreshActionStrip()
+
         if (!alreadyVisible) {
+            keyboardHost?.visibility = View.VISIBLE
             view.show()
             isKeyboardVisible = true
             animateContentPadding()
-            keyboardStateListener?.onKeyboardShown(keyboardHeightPx)
+            keyboardStateListener?.onKeyboardShown(totalKeyboardHeightPx())
             // Scroll the focused field into view
             scrollFieldIntoView(targetView)
             checkThreats()
@@ -320,7 +419,7 @@ class SecureKey private constructor(
             root.paddingLeft,
             root.paddingTop,
             root.paddingRight,
-            originalContentBottomPadding + keyboardHeightPx
+            originalContentBottomPadding + totalKeyboardHeightPx()
         )
     }
 
@@ -329,7 +428,7 @@ class SecureKey private constructor(
     private fun animateContentPadding() {
         val root = contentRoot ?: return
         originalContentBottomPadding = root.paddingBottom
-        val target = originalContentBottomPadding + keyboardHeightPx
+        val target = originalContentBottomPadding + totalKeyboardHeightPx()
 
         paddingAnimator?.cancel()
         paddingAnimator = ValueAnimator.ofInt(root.paddingBottom, target).apply {
@@ -469,38 +568,66 @@ class SecureKey private constructor(
         view.renderer.setDensity(density)
         view.bottomInsetPx = navBarHeight.toFloat()
 
+        // Host wraps an optional action strip + the keyboard so they move/show as a unit.
+        val host = LinearLayout(viewContext).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+
+        val strip = KeyboardActionStrip(viewContext)
+        host.addView(
+            strip,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                actionStripHeightPx()
+            )
+        )
+        strip.visibility = View.GONE
+
+        host.addView(
+            view,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                keyboardHeightPx
+            )
+        )
+
         val params = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            keyboardHeightPx
+            totalKeyboardHeightPx()
         ).apply {
             gravity = android.view.Gravity.BOTTOM
         }
 
-        // Add keyboard to DecorView — separate from content area
-        decorView.addView(view, params)
+        // Add host (strip + keyboard) to DecorView — separate from content area
+        decorView.addView(host, params)
         keyboardView = view
+        keyboardHost = host
+        actionStrip = strip
 
         // Listen for inset changes (rotation, nav bar changes)
-        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(host) { _, insets ->
             val navInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             view.bottomInsetPx = navInset.bottom.toFloat()
-            val newHeight = (KEYBOARD_HEIGHT_DP * density).toInt() + navInset.bottom
-            keyboardHeightPx = newHeight
-            val lp = v.layoutParams as FrameLayout.LayoutParams
-            lp.height = newHeight
-            v.layoutParams = lp
+            val newKeyboardHeight = (KEYBOARD_HEIGHT_DP * density).toInt() + navInset.bottom
+            keyboardHeightPx = newKeyboardHeight
+            val kbLp = view.layoutParams as LinearLayout.LayoutParams
+            kbLp.height = newKeyboardHeight
+            view.layoutParams = kbLp
+            val hostLp = host.layoutParams as FrameLayout.LayoutParams
+            hostLp.height = totalKeyboardHeightPx()
+            host.layoutParams = hostLp
             if (isKeyboardVisible) {
-                // Re-apply content padding with new height
                 val root = contentRoot
                 if (root != null) {
                     root.setPadding(
                         root.paddingLeft,
                         root.paddingTop,
                         root.paddingRight,
-                        originalContentBottomPadding + newHeight
+                        originalContentBottomPadding + totalKeyboardHeightPx()
                     )
                 }
-                keyboardStateListener?.onKeyboardShown(newHeight)
+                keyboardStateListener?.onKeyboardShown(totalKeyboardHeightPx())
             }
             insets
         }

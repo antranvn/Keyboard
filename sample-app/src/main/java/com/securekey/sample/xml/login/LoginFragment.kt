@@ -44,10 +44,10 @@ class LoginFragment : Fragment() {
         val activity = requireActivity()
         Log.d(TAG, "onViewCreated: activity=${activity::class.simpleName}")
 
-        binding.savedPasswordButton.visibility = View.VISIBLE
-
-        binding.savedPasswordButton.setOnClickListener {
-            Log.d(TAG, "savedPassword tapped")
+        SecureKey.getInstance().setKeyboardAction(
+            label = getString(com.securekey.sample.R.string.login_sign_in_with_saved)
+        ) {
+            Log.d(TAG, "savedPassword tapped (keyboard action)")
             viewModel.signInWithSavedPassword(
                 getCredential = { req -> getCredential(activity, req) },
                 onFilled = { id, pw ->
@@ -80,7 +80,6 @@ class LoginFragment : Fragment() {
                         Log.d(TAG, "isLoading = $loading")
                         binding.loadingIndicator.visibility = if (loading) View.VISIBLE else View.GONE
                         binding.signInButton.isEnabled = !loading
-                        binding.savedPasswordButton.isEnabled = !loading
                     }
                 }
                 launch {
@@ -135,6 +134,7 @@ class LoginFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        SecureKey.getInstance().clearKeyboardAction()
         _binding = null
     }
 

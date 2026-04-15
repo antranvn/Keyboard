@@ -59,6 +59,28 @@ fun LoginScreen(
         }
     }
 
+    DisposableEffect(activity) {
+        val a = activity
+        if (a != null) {
+            SecureKey.getInstance().setKeyboardAction(
+                label = "Sign in with saved password"
+            ) {
+                Log.d(TAG, "saved password action tapped (keyboard strip)")
+                viewModel.signInWithSavedPassword(
+                    getCredential = { req -> getCredential(a, req) },
+                    onFilled = { id, pw ->
+                        Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
+                        usernameView?.setText(id)
+                        passwordView?.setText(pw)
+                    }
+                )
+            }
+        }
+        onDispose {
+            SecureKey.getInstance().clearKeyboardAction()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -139,32 +161,6 @@ fun LoginScreen(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedButton(
-            onClick = {
-                val a = activity ?: return@OutlinedButton
-                Log.d(TAG, "signIn tapped: calling getCredential")
-                viewModel.signInWithSavedPassword(
-                    getCredential = { req ->
-                        Log.d(TAG, "getCredential request: options=${req.credentialOptions.map { it::class.simpleName }}")
-                        getCredential(a, req).also {
-                            Log.d(TAG, "getCredential response type=${it.credential::class.simpleName}")
-                        }
-                    },
-                    onFilled = { id, pw ->
-                        Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
-                        usernameView?.setText(id)
-                        passwordView?.setText(pw)
-                    }
-                )
-            },
-            enabled = activity != null && !isLoading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Sign in with saved password")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {
