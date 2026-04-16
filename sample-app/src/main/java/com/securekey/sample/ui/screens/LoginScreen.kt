@@ -1,5 +1,6 @@
 package com.securekey.sample.ui.screens
 
+import android.os.Build
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -61,7 +62,7 @@ fun LoginScreen(
 
     DisposableEffect(activity) {
         val a = activity
-        if (a != null) {
+        if (a != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             SecureKey.getInstance().setKeyboardAction(
                 label = "Sign in with saved password"
             ) {
@@ -167,15 +168,19 @@ fun LoginScreen(
                 val a = activity
                 Log.d(TAG, "login tapped: activity=${a != null} username.blank=${username.isBlank()} password.blank=${password.isBlank()}")
                 if (a != null) {
+                    val saver: (suspend (androidx.credentials.CreateCredentialRequest) -> androidx.credentials.CreateCredentialResponse)? =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            { req ->
+                                Log.d(TAG, "createCredential: type=${req.type}")
+                                createCredential(a, req).also {
+                                    Log.d(TAG, "createCredential response type=${it.type}")
+                                }
+                            }
+                        } else null
                     viewModel.saveAndProceed(
                         username = username,
                         password = password,
-                        createCredential = { req ->
-                            Log.d(TAG, "createCredential: type=${req.type}")
-                            createCredential(a, req).also {
-                                Log.d(TAG, "createCredential response type=${it.type}")
-                            }
-                        }
+                        createCredential = saver
                     )
                 } else {
                     Log.w(TAG, "activity null; skipping save, navigating home")

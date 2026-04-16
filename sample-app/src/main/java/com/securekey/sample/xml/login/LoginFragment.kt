@@ -1,6 +1,7 @@
 package com.securekey.sample.xml.login
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -44,28 +45,34 @@ class LoginFragment : Fragment() {
         val activity = requireActivity()
         Log.d(TAG, "onViewCreated: activity=${activity::class.simpleName}")
 
-        SecureKey.getInstance().setKeyboardAction(
-            label = getString(com.securekey.sample.R.string.login_sign_in_with_saved)
-        ) {
-            Log.d(TAG, "savedPassword tapped (keyboard action)")
-            viewModel.signInWithSavedPassword(
-                getCredential = { req -> getCredential(activity, req) },
-                onFilled = { id, pw ->
-                    Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
-                    binding.usernameField.setText(id)
-                    binding.passwordField.setText(pw)
-                }
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            SecureKey.getInstance().setKeyboardAction(
+                label = getString(com.securekey.sample.R.string.login_sign_in_with_saved)
+            ) {
+                Log.d(TAG, "savedPassword tapped (keyboard action)")
+                viewModel.signInWithSavedPassword(
+                    getCredential = { req -> getCredential(activity, req) },
+                    onFilled = { id, pw ->
+                        Log.d(TAG, "onFilled: id=$id passwordLength=${pw.length}")
+                        binding.usernameField.setText(id)
+                        binding.passwordField.setText(pw)
+                    }
+                )
+            }
         }
 
         binding.signInButton.setOnClickListener {
             val username = binding.usernameField.text?.toString().orEmpty()
             val password = binding.passwordField.text?.toString().orEmpty()
             Log.d(TAG, "signIn tapped: username.blank=${username.isBlank()} password.blank=${password.isBlank()}")
+            val saver: (suspend (androidx.credentials.CreateCredentialRequest) -> androidx.credentials.CreateCredentialResponse)? =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    { req -> createCredential(activity, req) }
+                } else null
             viewModel.saveAndProceed(
                 username = username,
                 password = password,
-                createCredential = { req -> createCredential(activity, req) }
+                createCredential = saver
             )
         }
 

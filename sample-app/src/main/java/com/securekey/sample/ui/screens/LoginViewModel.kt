@@ -91,7 +91,7 @@ class LoginViewModel : ViewModel() {
     fun saveAndProceed(
         username: String,
         password: String,
-        createCredential: suspend (CreateCredentialRequest) -> CreateCredentialResponse
+        createCredential: (suspend (CreateCredentialRequest) -> CreateCredentialResponse)?
     ) {
         viewModelScope.launch {
             if (username.isBlank() || password.isBlank()) {
@@ -103,6 +103,10 @@ class LoginViewModel : ViewModel() {
                 username == savedCredentialId &&
                 password == savedCredentialPassword
             ) {
+                _navigationEvent.emit(LoginNavEvent.NavigateToHome)
+                return@launch
+            }
+            if (createCredential == null) {
                 _navigationEvent.emit(LoginNavEvent.NavigateToHome)
                 return@launch
             }
